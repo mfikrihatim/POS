@@ -29,6 +29,15 @@ app.get('/api/config', (_req, res) => res.json({
   smtpEnabled: env.smtp.enabled,
 }));
 
+// Dokumentasi API (Swagger UI)
+const swaggerUi = require('swagger-ui-express');
+const openapi = require('./docs/openapi');
+app.get('/api/docs.json', (_req, res) => res.json(openapi));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+  customSiteTitle: 'POS API Docs',
+  swaggerOptions: { persistAuthorization: true, docExpansion: 'none' },
+}));
+
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/products', require('./routes/products.routes')); // GET /:id/image publik, sisanya pakai auth
 app.use('/api/payments', payments.publicRouter);
