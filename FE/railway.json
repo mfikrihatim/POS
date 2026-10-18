@@ -4,9 +4,9 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "npm start",
-    "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 120,
+    "startCommand": "node server.js",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE"
   }
 }

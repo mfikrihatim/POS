@@ -9,6 +9,7 @@ Aplikasi kasir (Point of Sale) full-stack untuk portfolio:
 ```
 POS/
 ├── BE/                 # Backend Express
+│   ├── railway.json    # config service pos-be
 │   ├── migrations/     # Skema database (SQL)
 │   ├── scripts/        # create-db, migrate, seed
 │   └── src/
@@ -17,14 +18,13 @@ POS/
 │       ├── routes/     # auth, users, categories, products, stock, transactions, payments, reports
 │       ├── services/   # transaksi, Midtrans, email, laporan, template struk
 │       └── utils/
-├── FE/                 # Frontend Angular
+├── FE/                 # Frontend Angular (+ server.js & railway.json untuk service pos-fe)
 │   └── src/app/
 │       ├── core/       # api, auth, guard, interceptor, model
 │       ├── shared/     # pagination, modal, struk, pipes
 │       ├── layout/     # sidebar + topbar
 │       └── pages/      # login, kasir, transaksi, produk, stok, laporan, pengguna
-├── package.json        # script build/start untuk deploy 1 service
-└── railway.json
+└── package.json        # script bantu (install, build, dev)
 ```
 
 ## Fitur
@@ -118,26 +118,30 @@ Script database di `BE`:
 1. Aktifkan 2-Step Verification di akun Google → buat **App Password**.
 2. Isi `.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=emailanda@gmail.com`, `SMTP_PASS=<app password 16 digit>`, `MAIL_FROM="Toko Maju Jaya <emailanda@gmail.com>"`.
 
-## Deploy ke Railway (1 service: API + Angular)
+## Deploy ke Railway (2 service: `pos-be` & `pos-fe`)
 
-Repo ini siap di-deploy sebagai **satu service**: Angular di-build lalu disajikan oleh Express (tanpa masalah CORS).
+FE dan BE dideploy sebagai **service terpisah** dari repo yang sama, sehingga log, metrik, dan restart masing-masing bisa dicek sendiri.
 
-1. Push ke GitLab:
-   ```bash
-   git init
-   git add .
-   git commit -m "POS: Angular + Express + PostgreSQL"
-   git remote add origin https://gitlab.com/<username>/pos.git
-   git push -u origin main
-   ```
-2. Railway → **New Project → Deploy from Repo** (hubungkan GitLab) atau gunakan Railway CLI (`railway up`) dari folder `POS`.
-3. Root directory: `/` (root repo). `railway.json` sudah mengatur:
-   - build: `npm run build` (install BE & FE, build Angular)
-   - start: `npm start` (jalankan migrasi lalu start API)
-   - healthcheck: `/api/health`
-4. Tab **Variables** service: isi `DATABASE_URL=${{Postgres.DATABASE_URL}}` (jika DB di project yang sama) atau `DB_HOST/DB_PORT/...`, lalu `JWT_SECRET`, `NODE_ENV=production`, key Midtrans & SMTP.
-5. **Settings → Networking → Generate Domain**.
-6. Seed data dummy (sekali saja) dari komputer lokal yang `.env`-nya mengarah ke DB Railway: `npm run db:seed --prefix BE`.
+| Service | Root Directory | Build | Start | Healthcheck |
+|---|---|---|---|---|
+| `pos-be` | `/BE` | `npm ci` | `npm run db:migrate && npm start` | `/api/health` |
+| `pos-fe` | `/FE` | `npm run build` (Angular) | `node server.js` | `/healthz` |
+
+Konfigurasi build/start ada di `BE/railway.json` dan `FE/railway.json`. `FE/server.js` menyajikan hasil build Angular dan **meneruskan `/api` ke `pos-be` lewat private network Railway**, jadi browser tetap memanggil `/api` di domain FE (tanpa masalah CORS, webhook Midtrans juga bisa lewat domain FE).
+
+Variables:
+
+- **pos-be**: `DB_HOST=${{Postgres.PGHOST}}`, `DB_PORT=${{Postgres.PGPORT}}`, `DB_USER=${{Postgres.PGUSER}}`, `DB_PASSWORD=${{Postgres.PGPASSWORD}}`, `DB_NAME=POS`, `PORT=3000`, `JWT_SECRET`, `NODE_ENV=production`, data toko, key Midtrans & SMTP.
+- **pos-fe**: `API_URL=http://${{pos-be.RAILWAY_PRIVATE_DOMAIN}}:${{pos-be.PORT}}`
+
+Langkah:
+
+1. Push repo ke GitHub/GitLab.
+2. Railway → New Service → GitHub Repo (dua kali, untuk `pos-be` dan `pos-fe`), set **Root Directory** sesuai tabel.
+3. Isi Variables di atas, lalu **Settings → Networking → Generate Domain** (minimal untuk `pos-fe`).
+4. Seed data dummy (sekali saja) dari komputer lokal yang `.env`-nya mengarah ke DB Railway: `npm run db:setup --prefix BE`.
+
+> Alternatif 1 service: `npm run build` lalu `npm start` di root repo – Express ikut menyajikan build Angular.
 
 > Gambar produk disimpan di tabel `product_images` (bytea), bukan di filesystem, sehingga tetap ada setelah redeploy (filesystem container Railway tidak permanen).
 

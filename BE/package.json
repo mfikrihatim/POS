@@ -14,7 +14,7 @@
     "db:setup": "node scripts/create-db.js && node scripts/migrate.js && node scripts/seed.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
