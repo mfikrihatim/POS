@@ -1,0 +1,169 @@
+<div class="page-head">
+  <div>
+    <h1>Katalog Produk</h1>
+    <p class="muted">Kelola produk, harga, gambar, dan kategori.</p>
+  </div>
+  @if (tab() === 'produk') { <button class="btn btn-primary" (click)="openForm()">+ Tambah Produk</button> }
+</div>
+
+<div class="tabs">
+  <button class="tab" [class.active]="tab() === 'produk'" (click)="tab.set('produk')">Produk</button>
+  <button class="tab" [class.active]="tab() === 'kategori'" (click)="tab.set('kategori')">Kategori ({{ categories().length }})</button>
+</div>
+
+@if (tab() === 'produk') {
+  <div class="card">
+    <div class="filters">
+      <input class="input" type="search" placeholder="Cari nama / SKU…" [(ngModel)]="f.search" (keyup.enter)="reload()" />
+      <select class="input" [(ngModel)]="f.category_id" (change)="reload()">
+        <option value="">Semua kategori</option>
+        @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+      </select>
+      <select class="input" [(ngModel)]="f.status" (change)="reload()">
+        <option value="">Semua status</option>
+        <option value="active">Aktif</option>
+        <option value="inactive">Nonaktif</option>
+      </select>
+      <select class="input" [(ngModel)]="f.stock" (change)="reload()">
+        <option value="">Semua stok</option>
+        <option value="available">Tersedia</option>
+        <option value="low">Menipis</option>
+        <option value="out">Habis</option>
+      </select>
+      <button class="btn" (click)="reload()">Cari</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="sortable" (click)="sortBy('sku')">SKU {{ arrow('sku') }}</th>
+            <th class="sortable" (click)="sortBy('name')">Nama {{ arrow('name') }}</th>
+            <th class="sortable" (click)="sortBy('category')">Kategori {{ arrow('category') }}</th>
+            <th class="sortable num" (click)="sortBy('price')">Harga {{ arrow('price') }}</th>
+            <th class="num">Modal</th>
+            <th class="sortable num" (click)="sortBy('stock')">Stok {{ arrow('stock') }}</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of rows(); track p.id) {
+            <tr>
+              <td class="thumb"><app-product-image [src]="p.image_url" [name]="p.name" /></td>
+              <td class="mono">{{ p.sku }}</td>
+              <td><b>{{ p.name }}</b></td>
+              <td>{{ p.category_name || '-' }}</td>
+              <td class="num">{{ p.price | rupiah }}</td>
+              <td class="num muted">{{ p.cost | rupiah }}</td>
+              <td class="num">
+                <span class="status" [class.status-failed]="p.stock === 0" [class.status-pending]="p.stock > 0 && p.stock <= p.min_stock" [class.status-paid]="p.stock > p.min_stock">
+                  {{ p.stock }} {{ p.unit }}
+                </span>
+              </td>
+              <td>{{ p.is_active ? 'Aktif' : 'Nonaktif' }}</td>
+              <td class="actions">
+                <button class="btn btn-sm" (click)="openForm(p)">Ubah</button>
+                <button class="btn btn-sm btn-ghost-danger" (click)="remove(p)">Hapus</button>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="9" class="empty">{{ loading() ? 'Memuat…' : 'Produk tidak ditemukan.' }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [meta]="meta()" (pageChange)="page = $event; load()" (limitChange)="limit = $event; reload()" />
+  </div>
+} @else {
+  <div class="grid-sidebar">
+    <div class="card">
+      <h3>{{ editingCat() ? 'Ubah Kategori' : 'Tambah Kategori' }}</h3>
+      <form [formGroup]="catForm" (ngSubmit)="saveCat()" novalidate>
+        <label class="field">
+          <span>Nama</span>
+          <input class="input" formControlName="name" [class.invalid]="catForm.controls.name.invalid && catForm.controls.name.touched" />
+          @if (catForm.controls.name.invalid && catForm.controls.name.touched) { <small class="error">Nama minimal 2 karakter</small> }
+        </label>
+        <label class="field">
+          <span>Deskripsi</span>
+          <textarea class="input" rows="3" formControlName="description"></textarea>
+        </label>
+        <div class="row-actions">
+          @if (editingCat()) { <button type="button" class="btn" (click)="editCat()">Batal</button> }
+          <button class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <table class="table">
+        <thead><tr><th>Kategori</th><th>Deskripsi</th><th class="num">Produk</th><th></th></tr></thead>
+        <tbody>
+          @for (c of categories(); track c.id) {
+            <tr>
+              <td><b>{{ c.name }}</b></td>
+              <td class="muted">{{ c.description || '-' }}</td>
+              <td class="num">{{ c.product_count }}</td>
+              <td class="actions">
+                <button class="btn btn-sm" (click)="editCat(c)">Ubah</button>
+                <button class="btn btn-sm btn-ghost-danger" (click)="removeCat(c)">Hapus</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}
+
+@if (showForm()) {
+  <app-modal [title]="editing() ? 'Ubah Produk' : 'Tambah Produk'" size="lg" (close)="showForm.set(false)">
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate id="productForm" class="product-form">
+      <div class="image-upload">
+        <div class="image-box">
+          @if (imagePreview()) { <img [src]="imagePreview()" alt="Pratinjau" /> } @else { <span class="muted">Belum ada gambar</span> }
+        </div>
+        <label class="btn btn-sm">📷 Pilih Gambar <input type="file" accept="image/jpeg,image/png,image/webp" (change)="onFile($event)" hidden /></label>
+        @if (imagePreview()) { <button type="button" class="btn btn-sm btn-ghost-danger" (click)="removeImage()">Hapus gambar</button> }
+        <small class="muted">JPG / PNG / WEBP, maks 2 MB</small>
+        @if (imageError()) { <small class="error">{{ imageError() }}</small> }
+      </div>
+      <div class="form-fields">
+        <div class="grid-2">
+          <label class="field"><span>SKU *</span><input class="input mono" formControlName="sku" [class.invalid]="err('sku')" />
+            @if (err('sku')) { <small class="error">{{ err('sku') }}</small> }</label>
+          <label class="field"><span>Kategori *</span>
+            <select class="input" formControlName="category_id" [class.invalid]="err('category_id')">
+              <option [ngValue]="null" disabled>Pilih kategori</option>
+              @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
+            </select>
+            @if (err('category_id')) { <small class="error">{{ err('category_id') }}</small> }</label>
+        </div>
+        <label class="field"><span>Nama Produk *</span><input class="input" formControlName="name" [class.invalid]="err('name')" />
+          @if (err('name')) { <small class="error">{{ err('name') }}</small> }</label>
+        <label class="field"><span>Deskripsi</span><textarea class="input" rows="2" formControlName="description"></textarea></label>
+        <div class="grid-3">
+          <label class="field"><span>Harga Jual (Rp) *</span><input class="input" type="number" min="0" formControlName="price" [class.invalid]="err('price')" />
+            @if (err('price')) { <small class="error">{{ err('price') }}</small> }</label>
+          <label class="field"><span>Harga Modal (Rp) *</span><input class="input" type="number" min="0" formControlName="cost" [class.invalid]="err('cost')" />
+            @if (err('cost')) { <small class="error">{{ err('cost') }}</small> }</label>
+          <label class="field"><span>Satuan *</span><input class="input" formControlName="unit" [class.invalid]="err('unit')" />
+            @if (err('unit')) { <small class="error">{{ err('unit') }}</small> }</label>
+        </div>
+        <div class="grid-3">
+          <label class="field"><span>{{ editing() ? 'Stok saat ini' : 'Stok Awal *' }}</span><input class="input" type="number" min="0" formControlName="stock" [class.invalid]="err('stock')" />
+            @if (editing()) { <small class="muted">Ubah stok lewat menu Manajemen Stok</small> }
+            @if (err('stock')) { <small class="error">{{ err('stock') }}</small> }</label>
+          <label class="field"><span>Stok Minimum *</span><input class="input" type="number" min="0" formControlName="min_stock" [class.invalid]="err('min_stock')" />
+            @if (err('min_stock')) { <small class="error">{{ err('min_stock') }}</small> }</label>
+          <label class="field check-field"><span>Status</span><label class="check"><input type="checkbox" formControlName="is_active" /> Aktif dijual</label></label>
+        </div>
+      </div>
+    </form>
+    <div footer class="modal-foot">
+      <button class="btn" (click)="showForm.set(false)">Batal</button>
+      <button class="btn btn-primary" type="submit" form="productForm" [disabled]="saving()">{{ saving() ? 'Menyimpan…' : 'Simpan' }}</button>
+    </div>
+  </app-modal>
+}

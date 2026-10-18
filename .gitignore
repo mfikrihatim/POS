@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+dist/
+.angular/
+BE/tmp/
+BE/uploads/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

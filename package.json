@@ -1,0 +1,16 @@
+{
+  "name": "pos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "POS (Point of Sale) - Angular + Node.js/Express + PostgreSQL",
+  "scripts": {
+    "install:all": "npm ci --prefix BE && npm ci --prefix FE",
+    "build": "npm ci --prefix BE && npm ci --prefix FE && npm run build --prefix FE",
+    "start": "npm run db:migrate --prefix BE && npm start --prefix BE",
+    "dev:be": "npm run dev --prefix BE",
+    "dev:fe": "npm start --prefix FE"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

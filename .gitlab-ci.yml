@@ -1,0 +1,22 @@
+image: node:22
+
+stages:
+  - build
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - BE/node_modules/
+    - FE/node_modules/
+
+build:
+  stage: build
+  script:
+    - npm ci --prefix BE
+    - node --check BE/src/server.js
+    - npm ci --prefix FE
+    - npm run build --prefix FE
+  artifacts:
+    paths:
+      - FE/dist/
+    expire_in: 1 week

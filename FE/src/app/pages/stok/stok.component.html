@@ -1,0 +1,107 @@
+<div class="page-head">
+  <div>
+    <h1>Manajemen Stok</h1>
+    <p class="muted">Pantau stok, catat barang masuk/keluar, dan stock opname. Setiap perubahan tercatat di riwayat.</p>
+  </div>
+</div>
+
+@if (summary(); as s) {
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Produk Aktif</div><div class="stat-value">{{ s.products }}</div></div>
+    <div class="stat"><div class="stat-label">Total Unit</div><div class="stat-value">{{ s.units.toLocaleString('id-ID') }}</div></div>
+    <div class="stat"><div class="stat-label">Nilai Stok (modal)</div><div class="stat-value">{{ s.stock_value | rupiah }}</div></div>
+    <div class="stat stat-warn"><div class="stat-label">Stok Menipis</div><div class="stat-value">{{ s.low_stock }}</div></div>
+    <div class="stat stat-danger"><div class="stat-label">Stok Habis</div><div class="stat-value">{{ s.out_of_stock }}</div></div>
+  </div>
+}
+
+<div class="grid-sidebar">
+  <div class="card stock-form">
+    <h3>Catat Pergerakan Stok</h3>
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <label class="field">
+        <span>Produk *</span>
+        <select class="input" formControlName="product_id" [class.invalid]="err('product_id')">
+          <option [ngValue]="null" disabled>Pilih produk</option>
+          @for (p of products(); track p.id) { <option [ngValue]="p.id">{{ p.name }} (stok {{ p.stock }})</option> }
+        </select>
+        @if (err('product_id')) { <small class="error">{{ err('product_id') }}</small> }
+      </label>
+      <div class="method-switch small-switch">
+        <label class="method" [class.active]="formType() === 'in'"><input type="radio" value="in" formControlName="type" hidden />⬆ Masuk</label>
+        <label class="method" [class.active]="formType() === 'out'"><input type="radio" value="out" formControlName="type" hidden />⬇ Keluar</label>
+        <label class="method" [class.active]="formType() === 'adjustment'"><input type="radio" value="adjustment" formControlName="type" hidden />⚖ Opname</label>
+      </div>
+      <label class="field">
+        <span>{{ formType() === 'adjustment' ? 'Stok fisik (hasil hitung) *' : 'Jumlah *' }}</span>
+        <input class="input" type="number" min="0" formControlName="qty" [class.invalid]="err('qty')" />
+        @if (err('qty')) { <small class="error">{{ err('qty') }}</small> }
+      </label>
+      @if (selectedProduct(); as p) {
+        <div class="preview" [class.bad]="(preview() ?? 0) < 0">
+          Stok: <b>{{ p.stock }}</b> → <b>{{ preview() ?? '…' }}</b> {{ p.unit }}
+        </div>
+      }
+      <label class="field"><span>Referensi</span><input class="input" formControlName="reference" placeholder="No. PO / surat jalan" /></label>
+      <label class="field"><span>Catatan</span><input class="input" formControlName="note" placeholder="mis. barang rusak, restok supplier" /></label>
+      <button class="btn btn-primary btn-block" [disabled]="saving()">{{ saving() ? 'Menyimpan…' : 'Simpan' }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>⚠ Perlu Restok</h3>
+    <table class="table">
+      <thead><tr><th>Produk</th><th class="num">Stok</th><th class="num">Min</th><th></th></tr></thead>
+      <tbody>
+        @for (p of alerts(); track p.id) {
+          <tr>
+            <td><b>{{ p.name }}</b><div class="muted small">{{ p.sku }}</div></td>
+            <td class="num"><span class="status" [class.status-failed]="p.stock === 0" [class.status-pending]="p.stock > 0">{{ p.stock }}</span></td>
+            <td class="num">{{ p.min_stock }}</td>
+            <td class="actions"><button class="btn btn-sm" (click)="restock(p)">Restok</button></td>
+          </tr>
+        } @empty { <tr><td colspan="4" class="empty">Semua stok aman 👍</td></tr> }
+      </tbody>
+    </table>
+    <app-pagination [meta]="alertMeta()" [limits]="[5]" (pageChange)="alertPage = $event; loadAlerts()" />
+  </div>
+</div>
+
+<div class="card">
+  <h3>Riwayat Pergerakan Stok</h3>
+  <div class="filters">
+    <input class="input" type="search" placeholder="Cari produk / referensi…" [(ngModel)]="f.search" (keyup.enter)="reload()" />
+    <select class="input" [(ngModel)]="f.type" (change)="reload()">
+      <option value="">Semua tipe</option>
+      <option value="in">Masuk</option>
+      <option value="out">Keluar</option>
+      <option value="adjustment">Penyesuaian</option>
+      <option value="sale">Penjualan</option>
+      <option value="return">Retur</option>
+    </select>
+    <button class="btn" (click)="reload()">Cari</button>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Waktu</th><th>Produk</th><th>Tipe</th><th class="num">Qty</th><th class="num">Sebelum</th><th class="num">Sesudah</th><th>Referensi</th><th>Catatan</th><th>Oleh</th></tr>
+      </thead>
+      <tbody>
+        @for (m of moves(); track m.id) {
+          <tr>
+            <td>{{ m.created_at | tanggal }}</td>
+            <td><b>{{ m.product_name }}</b></td>
+            <td><span class="status type-{{ m.type }}">{{ m.type | label }}</span></td>
+            <td class="num" [class.pos-num]="m.qty > 0" [class.neg-num]="m.qty < 0">{{ m.qty > 0 ? '+' : '' }}{{ m.qty }}</td>
+            <td class="num">{{ m.stock_before }}</td>
+            <td class="num">{{ m.stock_after }}</td>
+            <td class="mono small">{{ m.reference || '-' }}</td>
+            <td class="muted">{{ m.note || '-' }}</td>
+            <td>{{ m.user_name || 'Sistem' }}</td>
+          </tr>
+        } @empty { <tr><td colspan="9" class="empty">Belum ada data.</td></tr> }
+      </tbody>
+    </table>
+  </div>
+  <app-pagination [meta]="meta()" (pageChange)="page = $event; loadMoves()" (limitChange)="limit = $event; reload()" />
+</div>
